@@ -1,11 +1,10 @@
-import tkinter
-from tkinter import Canvas, Label, Tk, StringVar
-#import MessageBox
-
+from tkinter import Canvas, Label, Tk, StringVar, messagebox, ALL
 from random import choice
 from collections import Counter
 
+
 class Game():
+
     WIDTH = 300
     HEIGHT = 500
 
@@ -52,10 +51,10 @@ class Game():
         self.root.mainloop()
     
     def timer(self):
-        '''Every self.speed ms, attempt to cause the current_shape to fall().
+        '''
+        Every self.speed ms, attempt to cause the current_shape to fall().
         If fall() returns False, create a new shape and check if it can fall.
         If it can't, then the game is over.
-        
         '''
         if self.create_new_game == True:
             self.current_shape = Shape(self.canvas)
@@ -70,20 +69,7 @@ class Game():
 
             self.current_shape = Shape(self.canvas)
 
-            if self.is_game_over(): 
-                # TODO This is a problem. You rely on the timer method to
-                # create a new game rather than creating it here. As a 
-                # result, there is an intermittent error where the user
-                # event keypress Down eventually causes can_move_box
-                # to throw an IndexError, since the current shape has
-                # no boxes. Instead, you need to cleanly start a new
-                # game. I think refactoring start() might help a lot
-                # here.
-                #
-                # Furthermore, starting a new game currently doesn't reset
-                # the levels. You should place all your starting constants
-                # in the same place so it's clear what needs to be reset
-                # when.
+            if self.is_game_over():
                 self.create_new_game = True
                 self.game_over()
 
@@ -99,13 +85,18 @@ class Game():
 
     def handle_events(self, event):
         '''Handle all user events.'''
-        if event.keysym == "Left": self.current_shape.move(-1, 0)
-        if event.keysym == "Right": self.current_shape.move(1, 0)
-        if event.keysym == "Down": self.current_shape.move(0, 1)
-        if event.keysym == "Up": self.current_shape.rotate()
+        if event.keysym == "Left":
+            self.current_shape.move(-1, 0)
+        if event.keysym == "Right":
+            self.current_shape.move(1, 0)
+        if event.keysym == "Down":
+            self.current_shape.move(0, 1)
+        if event.keysym == "Up":
+            self.current_shape.rotate()
 
     def is_game_over(self):
-        '''Check if a newly created shape is able to fall.
+        '''
+        Check if a newly created shape is able to fall.
         If it can't fall, then the game is over.
         '''
         for box in self.current_shape.boxes:
@@ -114,39 +105,44 @@ class Game():
         return False
 
     def remove_complete_lines(self):
-        shape_boxes_coords = [self.canvas.coords(box)[3] for box 
-                in self.current_shape.boxes]
+        shape_boxes_coords = [self.canvas.coords(box)[3] for box
+                              in self.current_shape.boxes]
         all_boxes = self.canvas.find_all()
-        all_boxes_coords = {k : v for k, v in 
+        all_boxes_coords = {k: v for k, v in
                 zip(all_boxes, [self.canvas.coords(box)[3] 
                     for box in all_boxes])}
         lines_to_check = set(shape_boxes_coords)
-        boxes_to_check = dict((k, v) for k, v in all_boxes_coords.iteritems()
+        boxes_to_check = dict((k, v) for k, v in iter(all_boxes_coords.items())
                 if any(v == line for line in lines_to_check))
         counter = Counter()
-        for box in boxes_to_check.values(): counter[box] += 1
-        complete_lines = [k for k, v in counter.iteritems() 
-                if v == (Game.WIDTH/Shape.BOX_SIZE)]
- 
-        if not complete_lines: return False
 
-        for k, v in boxes_to_check.iteritems():
+        for box in boxes_to_check.values():
+            counter[box] += 1
+        complete_lines = [k for k, v in iter(counter.items())
+                          if v == (Game.WIDTH/Shape.BOX_SIZE)]
+ 
+        if not complete_lines:
+            return False
+
+        for k, v in iter(boxes_to_check.items()):
             if v in complete_lines:
                 self.canvas.delete(k)
                 del all_boxes_coords[k]
                 
         #TODO Would be cooler if the line flashed or something
-        for (box, coords) in all_boxes_coords.iteritems():
+
+        for (box, coords) in iter(all_boxes_coords.items()):
             for line in complete_lines:
                 if coords < line:
                     self.canvas.move(box, 0, Shape.BOX_SIZE)
         return len(complete_lines)
 
     def game_over(self):
-            self.canvas.delete(Tkinter.ALL)
-            tkMessageBox.showinfo(
+            self.canvas.delete(ALL)
+            messagebox.showinfo(
                     "Game Over", 
                     "You scored %d points." % self.score)
+
 
 class Shape:
     '''Defines a tetris shape.'''
@@ -165,7 +161,8 @@ class Shape:
             )
 
     def __init__(self, canvas):
-        '''Create a shape.
+        '''
+        Create a shape.
         Select a random shape from the SHAPES tuple. Then, for each point
         in the shape definition given in the SHAPES tuple, create a 
         rectangle of size BOX_SIZE. Save the integer references to these 
@@ -173,8 +170,8 @@ class Shape:
         Args:
         canvas - the parent canvas on which the shape appears
         '''
-        self.boxes = [] # the squares drawn by canvas.create_rectangle()
-        self.shape = choice(Shape.SHAPES) # a random shape
+        self.boxes = []     # the squares drawn by canvas.create_rectangle()
+        self.shape = choice(Shape.SHAPES)   # a random shape
         self.color = self.shape[0]
         self.canvas = canvas
 
@@ -243,9 +240,12 @@ class Shape:
         coords = self.canvas.coords(box)
         
         # Returns False if moving the box would overrun the screen
-        if coords[3] + y > Game.HEIGHT: return False
-        if coords[0] + x < 0: return False
-        if coords[2] + x > Game.WIDTH: return False
+        if coords[3] + y > Game.HEIGHT:
+            return False
+        if coords[0] + x < 0:
+            return False
+        if coords[2] + x > Game.WIDTH:
+            return False
 
         # Returns False if moving box (x, y) would overlap another box
         overlap = set(self.canvas.find_overlapping(
@@ -255,15 +255,16 @@ class Shape:
                 (coords[1] + coords[3]) / 2 + y
                 ))
         other_items = set(self.canvas.find_all()) - set(self.boxes)
-        if overlap & other_items: return False
+        if overlap & other_items:
+            return False
 
         return True
-
 
     def can_move_shape(self, x, y):
         '''Check if the shape can move (x, y) boxes.'''
         for box in self.boxes:
-            if not self.can_move_box(box, x, y): return False
+            if not self.can_move_box(box, x, y):
+                return False
         return True
 
 if __name__ == "__main__":
