@@ -14,16 +14,11 @@ class Game():
         Then starts a GUI timer of ms interval self.speed and starts the GUI main 
         loop.
         '''
-        # TODO start() needs to be refactored so that the creation of the
-        # window, label, and canvas are independent from setting them to
-        # defaults and starting the game.
-        #
-        # There should also be a way for the user to restart and pause
-        # the game if he or she wishes.
-        #
-        # It's a little weird that level is based only on time and that
-        # as a result it increases faster and faster. Wouldn't it make
-        # more sense for level to be a result of completed lines?
+        # TODO start() needs to be refactored
+        # create Display class
+        # add restart and pause
+
+
         self.level = 1
         self.score = 0
         self.speed = 500
@@ -63,9 +58,8 @@ class Game():
         if not self.current_shape.fall():
             lines = self.remove_complete_lines()
             if lines:
-                self.score += 10 * self.level**2 * lines**2
-                self.status_var.set("Level: %d, Score: %d" % 
-                        (self.level, self.score))
+                self.score += lines
+                self.status_var.set("Level: %d, Score: %d" % (self.level, self.score))
 
             self.current_shape = Shape(self.canvas)
 
@@ -94,6 +88,7 @@ class Game():
         if event.keysym == "Up":
             self.current_shape.rotate()
 
+
     def is_game_over(self):
         '''
         Check if a newly created shape is able to fall.
@@ -105,31 +100,30 @@ class Game():
         return False
 
     def remove_complete_lines(self):
+
         shape_boxes_coords = [self.canvas.coords(box)[3] for box
                               in self.current_shape.boxes]
         all_boxes = self.canvas.find_all()
-        all_boxes_coords = {k: v for k, v in
-                zip(all_boxes, [self.canvas.coords(box)[3] 
-                    for box in all_boxes])}
+        all_boxes_coords = {k: v for k, v in zip(all_boxes, [self.canvas.coords(box)[3]
+                                                             for box in all_boxes])}
         lines_to_check = set(shape_boxes_coords)
         boxes_to_check = dict((k, v) for k, v in iter(all_boxes_coords.items())
-                if any(v == line for line in lines_to_check))
-        counter = Counter()
+                              if any(v == line for line in lines_to_check))
 
+        counter_box = Counter()
         for box in boxes_to_check.values():
-            counter[box] += 1
-        complete_lines = [k for k, v in iter(counter.items())
-                          if v == (Game.WIDTH/Shape.BOX_SIZE)]
- 
+            counter_box[box] += 1
+
+        complete_lines = [k for k, v in counter_box.items()
+                          if v == ((Game.WIDTH - Shape.BOX_SIZE) // Shape.BOX_SIZE)]
+
         if not complete_lines:
             return False
 
-        for k, v in iter(boxes_to_check.items()):
+        for k, v in boxes_to_check.items():
             if v in complete_lines:
                 self.canvas.delete(k)
                 del all_boxes_coords[k]
-                
-        #TODO Would be cooler if the line flashed or something
 
         for (box, coords) in iter(all_boxes_coords.items()):
             for line in complete_lines:
@@ -184,7 +178,6 @@ class Shape:
                 fill=self.color)
             self.boxes.append(box)
 
-           
     def move(self, x, y):
         '''Moves this shape (x, y) boxes.'''
         if not self.can_move_shape(x, y): 
