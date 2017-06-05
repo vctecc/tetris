@@ -1,12 +1,25 @@
-from tkinter import Canvas, Label, Tk, StringVar, messagebox, ALL
+from tkinter import Canvas, Label, Tk, StringVar, messagebox, Frame, ALL
 from random import choice
 from collections import Counter
+from copy import deepcopy
 
 
 class Game():
 
     WIDTH = 300
     HEIGHT = 500
+    BOX_SIZE = 20
+    # START_POINT relies on screwy integer arithmetic to approximate the middle
+    # of the canvas while remaining correctly on the grid.
+    START_POINT = WIDTH / 2 / BOX_SIZE * BOX_SIZE - BOX_SIZE
+
+    def __init__(self):
+
+        self.level = 1
+        self.score = 0
+        self.speed = 500
+        self.counter = 0
+        self.create_new_game = True
 
     def start(self):
         '''Starts the game.
@@ -18,28 +31,27 @@ class Game():
         # create Display class
         # add restart and pause
 
-
-        self.level = 1
-        self.score = 0
-        self.speed = 500
-        self.counter = 0
-        self.create_new_game = True
-
         self.root = Tk()
         self.root.title("Tetris")
 
+        self.canvas = Canvas(self.root, width=Game.WIDTH,
+                             height=Game.HEIGHT)
+
+        self.canvas.grid(row=0, column=0)
+
+        self.panel = Frame(self.root, height=Game.HEIGHT)
+        self.panel.grid(row=0, column=1, sticky='N')
+
         self.status_var = StringVar() 
-        self.status_var.set("Level: 1, Score: 0")
-        self.status = Label(self.root, 
-                textvariable=self.status_var, 
-                font=("Helvetica", 10, "bold"))
+        self.status_var.set("Level: 1, \nScore: 0")
+        self.status = Label(self.panel, textvariable=self.status_var,
+                            font=("Helvetica", 10, "bold"))
         self.status.pack()
+
+        self.shape_canvas = Canvas(self.panel, height=Game.BOX_SIZE*3, width=Game.BOX_SIZE*5)
+        self.shape_canvas.pack()
         
-        self.canvas = Canvas(
-                self.root, 
-                width=Game.WIDTH, 
-                height=Game.HEIGHT)
-        self.canvas.pack()
+
 
         self.root.bind("<Key>", self.handle_events)
         self.timer()
@@ -51,17 +63,35 @@ class Game():
         If fall() returns False, create a new shape and check if it can fall.
         If it can't, then the game is over.
         '''
-        if self.create_new_game == True:
-            self.current_shape = Shape(self.canvas)
+
+        if self.create_new_game:
+
+            self.current_shape = Shape()
+            self.current_shape.create(self.canvas, Game.START_POINT)
+
+            self.next_shape = Shape()
+
+            self.next_shape_print = deepcopy(self.next_shape)
+            self.next_shape_print.create(self.shape_canvas, Game.BOX_SIZE)
+
             self.create_new_game = False
 
         if not self.current_shape.fall():
             lines = self.remove_complete_lines()
             if lines:
                 self.score += lines
-                self.status_var.set("Level: %d, Score: %d" % (self.level, self.score))
+                self.status_var.set("Level: %d, \nScore: %d" % (self.level, self.score))
 
-            self.current_shape = Shape(self.canvas)
+            """ 
+            It is necessary to make a correct transfer.
+            And remove deepcopy
+            """
+            self.shape_canvas.delete(ALL)
+            self.current_shape = deepcopy(self.next_shape)
+            self.current_shape.create(self.canvas, Game.START_POINT)
+            self.next_shape = Shape()
+            self.next_shape_print = deepcopy(self.next_shape)
+            self.next_shape_print.create(self.shape_canvas, Game.BOX_SIZE)
 
             if self.is_game_over():
                 self.create_new_game = True
@@ -115,7 +145,7 @@ class Game():
             counter_box[box] += 1
 
         complete_lines = [k for k, v in counter_box.items()
-                          if v == ((Game.WIDTH - Shape.BOX_SIZE) // Shape.BOX_SIZE)]
+                          if v == ((Game.WIDTH - Game.BOX_SIZE) // Game.BOX_SIZE)]
 
         if not complete_lines:
             return False
@@ -128,11 +158,12 @@ class Game():
         for (box, coords) in iter(all_boxes_coords.items()):
             for line in complete_lines:
                 if coords < line:
-                    self.canvas.move(box, 0, Shape.BOX_SIZE)
+                    self.canvas.move(box, 0, Game.BOX_SIZE)
         return len(complete_lines)
 
     def game_over(self):
             self.canvas.delete(ALL)
+            self.shape_canvas.delete(ALL)
             messagebox.showinfo(
                     "Game Over", 
                     "You scored %d points." % self.score)
@@ -140,21 +171,19 @@ class Game():
 
 class Shape:
     '''Defines a tetris shape.'''
-    BOX_SIZE = 20
-    # START_POINT relies on screwy integer arithmetic to approximate the middle
-    # of the canvas while remaining correctly on the grid.
-    START_POINT = Game.WIDTH / 2 / BOX_SIZE * BOX_SIZE - BOX_SIZE
-    SHAPES = (
-            ("yellow", (0, 0), (1, 0), (0, 1), (1, 1)),     # square
-            ("lightblue", (0, 0), (1, 0), (2, 0), (3, 0)),  # line
-            ("orange", (2, 0), (0, 1), (1, 1), (2, 1)),     # right el
-            ("blue", (0, 0), (0, 1), (1, 1), (2, 1)),       # left el
-            ("green", (0, 1), (1, 1), (1, 0), (2, 0)),      # right wedge
-            ("red", (0, 0), (1, 0), (1, 1), (2, 1)),        # left wedge
-            ("purple", (1, 0), (0, 1), (1, 1), (2, 1)),     # symmetrical wedge
-            )
 
-    def __init__(self, canvas):
+    SHAPES = (
+            ((0, 0), (1, 0), (0, 1), (1, 1)),     # square
+            ((0, 0), (1, 0), (2, 0), (3, 0)),     # line
+            ((2, 0), (0, 1), (1, 1), (2, 1)),     # right el
+            ((0, 0), (0, 1), (1, 1), (2, 1)),     # left el
+            ((0, 1), (1, 1), (1, 0), (2, 0)),     # right wedge
+            ((0, 0), (1, 0), (1, 1), (2, 1)),     # left wedge
+            ((1, 0), (0, 1), (1, 1), (2, 1)),     # symmetrical wedge
+            )
+    COLORS = ("yellow", "lightblue", "orange", "blue", "green", "red", "purple")
+
+    def __init__(self):
         '''
         Create a shape.
         Select a random shape from the SHAPES tuple. Then, for each point
@@ -166,17 +195,23 @@ class Shape:
         '''
         self.boxes = []     # the squares drawn by canvas.create_rectangle()
         self.shape = choice(Shape.SHAPES)   # a random shape
-        self.color = self.shape[0]
+        self.color = choice(Shape.COLORS)
+
+    def create(self, canvas, start_point):
+
         self.canvas = canvas
 
-        for point in self.shape[1:]:
+        self.START_POINT = start_point
+
+        for point in self.shape:
             box = canvas.create_rectangle(
-                point[0] * Shape.BOX_SIZE + Shape.START_POINT,
-                point[1] * Shape.BOX_SIZE,
-                point[0] * Shape.BOX_SIZE + Shape.BOX_SIZE + Shape.START_POINT,
-                point[1] * Shape.BOX_SIZE + Shape.BOX_SIZE,
+                point[0] * Game.BOX_SIZE + self.START_POINT,
+                point[1] * Game.BOX_SIZE,
+                point[0] * Game.BOX_SIZE + Game.BOX_SIZE + self.START_POINT,
+                point[1] * Game.BOX_SIZE + Game.BOX_SIZE,
                 fill=self.color)
             self.boxes.append(box)
+
 
     def move(self, x, y):
         '''Moves this shape (x, y) boxes.'''
@@ -184,7 +219,7 @@ class Shape:
             return False         
         else:
             for box in self.boxes: 
-                self.canvas.move(box, x * Shape.BOX_SIZE, y * Shape.BOX_SIZE)
+                self.canvas.move(box, x * Game.BOX_SIZE, y * Game.BOX_SIZE)
             return True
 
     def fall(self):
@@ -193,7 +228,7 @@ class Shape:
             return False
         else:
             for box in self.boxes:
-                self.canvas.move(box, 0 * Shape.BOX_SIZE, 1 * Shape.BOX_SIZE)
+                self.canvas.move(box, 0 * Game.BOX_SIZE, 1 * Game.BOX_SIZE)
             return True
 
     def rotate(self):
@@ -207,8 +242,8 @@ class Shape:
             pivot_coords = self.canvas.coords(pivot)
             x_diff = box_coords[0] - pivot_coords[0]
             y_diff = box_coords[1] - pivot_coords[1]
-            x_move = (- x_diff - y_diff) / self.BOX_SIZE
-            y_move = (x_diff - y_diff) / self.BOX_SIZE
+            x_move = (- x_diff - y_diff) / Game.BOX_SIZE
+            y_move = (x_diff - y_diff) / Game.BOX_SIZE
             return x_move, y_move
 
         # Check if shape can legally move
@@ -221,15 +256,15 @@ class Shape:
         for box in boxes:
             x_move, y_move = get_move_coords(box)
             self.canvas.move(box, 
-                    x_move * self.BOX_SIZE, 
-                    y_move * self.BOX_SIZE)
+                    x_move * Game.BOX_SIZE,
+                    y_move * Game.BOX_SIZE)
 
         return True
 
     def can_move_box(self, box, x, y):
         '''Check if box can move (x, y) boxes.'''
-        x = x * Shape.BOX_SIZE
-        y = y * Shape.BOX_SIZE
+        x = x * Game.BOX_SIZE
+        y = y * Game.BOX_SIZE
         coords = self.canvas.coords(box)
         
         # Returns False if moving the box would overrun the screen
